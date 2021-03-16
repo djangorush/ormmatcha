@@ -1,7 +1,11 @@
 import inspect
 
 class Field:
-    value = None
+    
+    def __init__(self, iscomputed=False):
+        self.value = None
+        self.isnumeric = False
+        self.iscomputed = iscomputed
     
     def __get__(self, instance, owner):
         return self.value
@@ -9,6 +13,11 @@ class Field:
         self.value = value
 
 class IntField(Field):
+
+    def __init__(self):
+        self.value = None
+        self.isnumeric = True
+    
     def __set__(self, instance, value):
         if not isinstance(value, int):
             raise TypeError(instance, self._name, int, value)

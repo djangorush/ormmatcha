@@ -5,7 +5,6 @@ Created on Mar 10, 2021
 '''
 
 import inspect
-from matcha.orm.meta import MetaModel
 from matcha.model.User import User
 
 class Test:
@@ -19,14 +18,14 @@ def introspect(obj):
 
 def is_field(attr):
     print("attr", attr, "Type:", type(attr))
-    return False
+    return True
 
 if __name__ == '__main__':
     print("toto")
     toto = inspect.getmembers(User(), lambda attr: is_field(attr))
-    print("class:", type(toto))
-    for i in toto:
-        print('i:', i, 'i[0]:', i[0], 'Type:', type(i))
-    for i in User().__dict__:
-        print('i:', i, 'i[0]:', i[0], 'Type:', type(i))
+    print("class:", type(toto), ' len:', len(toto))
+#     for i in toto:
+#         print('i:', i, 'i[0]:', i[0], 'Type:', type(i))
+#     for i in User().__dict__:
+#         print('i:', i, 'i[0]:', i[0], 'Type:', type(i))
 

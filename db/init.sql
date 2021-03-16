@@ -1,8 +1,8 @@
-create role MATCHAADMIN with login password 'matchapass';
+create role matchaadmin with login password 'matchapass';
 
 
-create database MATCHADB with owner "MATCHAADMIN" encoding  'UTF8';
+create database matchadb with owner matchaadmin encoding  'UTF8';
 
-grant all on database MATCHADB to "MATCHAADMIN";
-grant temporary, connect on database MATCHADB to PUBLIC;
-grant all on database MATCHADB to MATCHAADMIN;
+grant all on database matchadb to matchaadmin;
+grant temporary, connect on database matchadb to PUBLIC;
+grant all on database matchadb to matchaadmin;

@@ -32,7 +32,7 @@ class Model:
 
 if __name__ == '__main__':
     inspection = Inspection()
-    mod = importlib.import_module("matcha.model.User")
+    mod = importlib.import_module("matcha.model.Users")
     klazz = getattr(mod, "User")
     for key, val in klazz.__dict__.iteritems():
         if isinstance(val, Field):
