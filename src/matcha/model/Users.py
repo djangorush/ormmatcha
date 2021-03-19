@@ -1,17 +1,18 @@
 from dataclasses import dataclass
-from matcha.orm.meta import Model, CharField, IntField
+from matcha.orm.reflection import ModelObject, CharField, IntField, DateField, DateTimeField, EmailField, BoolField, EnumField, TextField
 
 @dataclass(init=False)
-class Users(Model):
+class Users(ModelObject):
     id: IntField(iskey=True)
-    first_name: CharField()
-    last_name: CharField()
-    password: CharField()
-    email: CharField(iscomputed=True)
-
-    def __str__(self):
-        if self.id is None:
-            return "Null"
-        else:
-            return '(' + str(self.id) + ') ' + self.first_name + ' ' +self.last_name 
-        
+    first_name: CharField(length=45)
+    last_name: CharField(length=45)
+    user_name: CharField(length=45)
+    password: CharField(length=45)
+    description: TextField()
+    email: EmailField()
+    active: BoolField()
+    confirm: CharField(length=20)
+    gender: EnumField(values=['Male', 'Female'])
+    orientation: EnumField(values=['Hetero', 'Homo', 'bi'])
+    birthday: DateField()
+    last_update: DateTimeField(iscomputed=True)

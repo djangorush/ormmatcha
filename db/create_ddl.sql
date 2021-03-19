@@ -36,7 +36,7 @@ create table USERS (
     description text,
     email		character varying(45),
     active		boolean DEFAULT False NOT NULL,
-    confirm	character varying(20),
+    confirm		character varying(20),
     gender		mpaa_gender DEFAULT 'Female'::mpaa_gender,
     orientation	mpaa_orientation NOT NULL,
     birthday	date,	
@@ -71,11 +71,11 @@ alter table MESSAGE owner to MATCHAADMIN;
 ---
 create table USERS_PHOTO (
     users_id	integer NOT NULL,
-    photo1		bytea,
-    photo2		bytea,
-    photo3		bytea,
-    photo4		bytea,
-    photo5		bytea
+    photo1		character varying(255),
+    photo2		character varying(255),
+    photo3		character varying(255),
+    photo4		character varying(255),
+    photo5		character varying(255)
 );
 alter table USERS_PHOTO owner to MATCHAADMIN;
     
@@ -145,7 +145,7 @@ create table CONNECTION (
     id				integer DEFAULT nextval('CONNECTION_ID_SEQ'::regclass) NOT NULL,
     users_id		integer not null,
     ip				character varying(45) NOT NULL,
-    connect_date	timestamp without time zone DEFAULT now() NOT NULL,
-    disconnect_date	timestamp without time zone DEFAULT now() NOT NULL
+    connect_date	timestamp without time zone NOT NULL,
+    disconnect_date	timestamp without time zone
 );
-alter table VISIT_ID_SEQ owner to MATCHAADMIN;
+alter table CONNECTION owner to MATCHAADMIN;
