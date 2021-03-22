@@ -97,10 +97,28 @@ class ImageField(Field):
         super().__set__(instance, value)
 
 class ManyToOneField(Field):
-    def __init__(self, modelname=None, iscomputed=False, iskey=False, isnumeric=False):
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfield=None):
+        Field.__init__(self, iscomputed, iskey, isnumeric)
+        if modelname is None or keyfield is None:
+            raise ValueError("'modelname' and 'keyfield' attributes must be specified!")
+        self.modelname = modelname
+        self.keyfield = keyfield
+    def __set__(self, instance, value):
+        if not isinstance(value, list):
+            raise TypeError(instance, self._name, list, value)
+        self.value = value
+
+class ManyToManyField(ManyToOneField):
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfield=None, jointable=None, joinfield=None):
+        Field.__init__(self, iscomputed, iskey, isnumeric, modelname, keyfield)
+        self.jointable = jointable
+        self.joinfield = joinfield
+
+class OneToManyField(Field):
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfield=None):
         Field.__init__(self, iscomputed, iskey, isnumeric)
         self.modelname = modelname
-        self.model_value = None
+        self.keyfield=keyfield
     def __set__(self, instance, value):
         self.value = value
 

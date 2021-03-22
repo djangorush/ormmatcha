@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from matcha.orm.reflection import ModelObject, CharField, IntField, DateField, DateTimeField, EmailField, BoolField, EnumField, TextField
+from matcha.orm.reflection import ModelObject, CharField, IntField, DateField, DateTimeField, EmailField, BoolField, EnumField, TextField,\
+    OneToManyField, ManyToManyField
 
 @dataclass(init=False)
 class Users(ModelObject):
@@ -16,3 +17,5 @@ class Users(ModelObject):
     orientation: EnumField(values=['Hetero', 'Homo', 'bi'])
     birthday: DateField()
     last_update: DateTimeField(iscomputed=True)
+    tags: ManyToManyField(jointable='user_tag', modelname='Tag', keyfield='users_id', joinfield='tag_id')
+    connections: OneToManyField(modelname='Connection', keyfield='users_id')

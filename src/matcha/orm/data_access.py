@@ -212,6 +212,7 @@ class DataAccess():
                 addon = ', '
         cmd += columns + ') values ' + values + ')'
         self.execute(cmd)
+        record = find()
 
     def remove(self, record):
         model, model_name = self.getModel(record)
