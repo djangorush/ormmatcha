@@ -2,38 +2,28 @@ import psycopg2 as p
 from matcha.orm.reflection import ModelDict
 import matcha.config
 import logging
+from matcha.orm.reflection import OneToManyField, ManyToManyField
 
-"""
-Add quote when necessary
-"""
-def quote(field, value):
-    if value is None:
-        return 'null'
-    if not field.type.isnumeric:
-        return "'" + str(value) +"'"
-    return str(value)
-    
 class Query():
     """
-    Class Query for buildin a sql command from parameters list
+    Class Query for buildinq a sql command from parameters list
     """
-    def __init__(self, model, leftjoins, conditions, orderby):
+    def __init__(self, model, leftjoins, conditions, whereaddon, orderby):
         self.model = model
         self.leftjoins = leftjoins
         self.conditions = conditions
         self.orderby = orderby
+        self.whereaddon = whereaddon
     
     """
-    Append condition to where clause
+    Append member to value whith prefix, returning value
+        if current value equal None append firstprefix otherwise otherprefix, then concatenate member  
     """
-    def append_where(self, where, condition):
-        if where is None:
-            where = " where "
+    def append(self, value, member, firstprefix, otherprefix):
+        if value is None:
+            return firstprefix + member
         else:
-            where += " and "
-        field = self.model.get_field(condition[0].rpartition('.')[-1])
-        where = where + condition[0] + condition[1] + quote(field, str(condition[2]))
-        return where
+            return value + otherprefix + member
 
     """
     get formatted condition from raw condition
@@ -60,10 +50,18 @@ class Query():
         if not type(conditions) is list:
             conditions = [conditions]
         where = None
+        parameters = tuple()
         for condition in conditions:
-            where = self.append_where(where, self.get_condition(condition))
-        return where
+            fcondition = self.get_condition(condition)
+            member = fcondition[0] + fcondition[1] + '%s'
+            parameters += (fcondition[2],)
+            where = self.append(where, member, " where ", " and ")
+        return where, parameters
     
+    """
+    Build query
+        - return query string and tuple of parameters
+    """
     def build_query(self):
         model_name  = self.model.name
         self.suffix = model_name[0]
@@ -72,24 +70,38 @@ class Query():
         first = True
         model = ModelDict().get_model(model_name)
         for field in model.get_fields():
-            query += (" " if first else ", ") + self.suffix + '.' + field.name
-            first = False
+            if not isinstance(field.type, OneToManyField):
+                query += (" " if first else ", ") + self.suffix + '.' + field.name
+                first = False
+        """
+        leftjoin--> 0:fieldName, 1:suffix, 2:join model, 3:ManyToOne field 
+        """
         for leftjoin in self.leftjoins:
             field = leftjoin[3]          
             from_clause += " left outer join " + field.type.modelname + ' ' + leftjoin[1]
             for field in leftjoin[2].get_fields():
-                query += ", " + leftjoin[1] + '.' + field.name
-                if field.type.iskey:
-                    from_clause += " on " +self.suffix + '.' + leftjoin[0] + ' = ' + leftjoin[1] + '.' + field.name
+                if not isinstance(field.type, OneToManyField):
+                    query += ", " + leftjoin[1] + '.' + field.name
+                    if field.type.iskey:
+                        from_clause += " on " +self.suffix + '.' + leftjoin[0] + ' = ' + leftjoin[1] + '.' + field.name
         query += from_clause
-        where_clause = self.build_where(self.conditions)
+        where_clause, parameters = self.build_where(self.conditions)
+        if not self.whereaddon is None:
+            where_clause = self.append(where_clause, self.whereaddon[0], " where ", " and ")
+            size = len(self.whereaddon)
+            for i in range(1,size):
+                parameters += (self.whereaddon[i],)
         if not where_clause is None:
             query += where_clause
         if not self.orderby is None:
             query += ' order by ' + self.orderby
         logging.debug("query:" + query)
-        return query
-    
+        return query, parameters
+
+"""
+    Class DataAccess
+    ----------------
+"""
 class DataAccess():
     """
     Singleton DataAccess class provides:
@@ -104,6 +116,9 @@ class DataAccess():
     __modelDict = ModelDict()
     __connection = None
     
+    """
+    Check for singleton
+    """
     def __new__(cls):
         """
         if previous instance is null instantiate and connect to database, elsewhere return current instance        
@@ -118,24 +133,43 @@ class DataAccess():
         modelobject = model.new_instance()
         i = start
         for field in model.get_fields():
-            setattr(modelobject,field.name,record[i])
-            i += 1
+            if not isinstance(field.type, OneToManyField):
+                setattr(modelobject,field.name,record[i])
+                i += 1
         return (modelobject, i)
     
-    def __fetch_records(self, model, leftjoins, conditions, orderby):
-        query = Query(model, leftjoins, conditions, orderby).build_query()
+    def get_set_elements(self, suffix, _id, setjoin):
+        """
+        setjoin--> 0:fieldName, 1:suffix, 2:join model, 3:ManyToOne field 
+        """
+        objects = []
+        fieldtype = setjoin[3].type
+        if isinstance(setjoin[3].type, ManyToManyField):
+            setmodel = ModelDict().get_model(setjoin[3].type.modelname)
+            addonclause = "exists ( select 1 from " + fieldtype.jointable + " xyz where " + suffix + "." + fieldtype.joinfieldname + " = xyz." + fieldtype.keyfieldname + ")"
+            records = self.__fetch_records(setmodel, leftjoins=[], conditions=[], whereaddon=(addonclause, ), orderby=fieldtype.orderby)
+        else:
+            records = self.__fetch_records(setjoin[2], leftjoins=[], conditions=(fieldtype.keyfieldname, _id), whereaddon=None, orderby=fieldtype.orderby)
+        for record in records:
+            (modelobject, _) = self.populate(record, setjoin[2], 0)
+            objects.append(modelobject)
+        return objects
+
+    def __fetch_records(self, model, leftjoins, conditions, whereaddon, orderby):
+        query, parameters = Query(model, leftjoins, conditions, whereaddon, orderby).build_query()
         with DataAccess.__connection.cursor() as cursor:
-            cursor.execute(query)
+            cursor.execute(query, parameters)
             records = cursor.fetchall()
             return records
 
-    def fetch(self, model_name, joins=[], conditions=[], orderby=None):
+    def fetch(self, model_name, joins=[], conditions=[], whereaddon=None, orderby=None):
         model = ModelDict().get_model(model_name)
         objects = []
         """
         leftjoin--> 0:fieldName, 1:suffix, 2:join model, 3:ManyToOne field 
         """
         leftjoins = [] 
+        setjoins = [] 
         if not type(joins) is list:
             joins = [joins]
         for join in joins:
@@ -150,14 +184,20 @@ class DataAccess():
             joinModel = ModelDict().get_model(model.get_field(join_name).type.modelname)
             joinfield = model.get_field(join_name)          
             leftjoin = (join_name, suffix, joinModel, joinfield)
-            leftjoins.append(leftjoin)
-        records = self.__fetch_records(model, leftjoins, conditions, orderby)
+            if not isinstance(joinfield.type, OneToManyField):
+                leftjoins.append(leftjoin)
+            else:
+                setjoins.append(leftjoin)
+        records = self.__fetch_records(model, leftjoins, conditions, whereaddon, orderby)
         for record in records:
             (modelobject, start) = self.populate(record, model, 0)
             objects.append(modelobject)
             for leftjoin in leftjoins:
                 (joinobject, start) = self.populate(record, leftjoin[2], start)
                 setattr(modelobject,leftjoin[0],joinobject)
+            for setjoin in setjoins:
+                _id = getattr(modelobject, model.get_key_field().name)
+                setattr(modelobject, setjoin[0], self.get_set_elements(suffix, _id, setjoin))
         return objects
 
     def find(self, model_name, joins=[], conditions=[], orderby=None):
@@ -180,24 +220,38 @@ class DataAccess():
         model_name = type(record).get_model_name()
         return ModelDict().get_model(model_name), model_name
         
-    def execute(self, cmd):
+    def execute(self, cmd, parameters=None, model=None, record=None):
         with DataAccess.__connection.cursor() as cursor:
-            cursor.execute(cmd)
+            cursor.execute(cmd, parameters)
+            if not record is None:
+                updatedrecord = cursor.fetchone()
+                i = 0
+                for field in model.get_fields():
+                    if field.type.iskey or field.type.iscomputed:
+                        setattr(record,field.name,updatedrecord[i])
+                    i += 1
+                returnvalue = record
+            else:
+                returnvalue = None
             DataAccess.__connection.commit()
             logging.debug("Excecute:" + cmd)
+            return returnvalue
         
     def merge(self, record):
         model, model_name = self.getModel(record)
         cmd = "update " + model_name + " set"
-        
         addon = ' '
+        parameters = tuple()
         for field in model.get_fields():
-            if not field.type.iskey and not field.type.iscomputed:
-                cmd += addon + field.name + " = " +  quote(field, getattr(record, field.name))
+            if not field.type.iskey and not field.type.iscomputed and not isinstance(field.type, OneToManyField):
+                cmd += addon + field.name + " = %s"
                 addon = ', '
+                parameters += (getattr(record, field.name),)
+            elif 'last_update' == field.name and field.type.iscomputed:
+                cmd += addon + "last_update = DEFAULT"
         key_field = model.get_key_field().name
-        cmd += ' where ' +  key_field + ' = ' + str(getattr(record, key_field))
-        self.execute(cmd)
+        cmd += ' where ' +  key_field + ' = ' + str(getattr(record, key_field)) + ' returning *'
+        self.execute(cmd, parameters, model, record)
                    
     def persist(self, record):
         model, model_name = self.getModel(record)
@@ -205,17 +259,19 @@ class DataAccess():
         columns = ''
         values = ''
         addon = '('
+        parameters = tuple()
         for field in model.get_fields():
-            if not field.type.iskey and not field.type.iscomputed:
+            if not field.type.iskey and not field.type.iscomputed and not isinstance(field.type, OneToManyField):
                 columns += addon + field.name
-                values += addon + quote(field, getattr(record, field.name))
+                values += addon + '%s'
+                parameters += (getattr(record, field.name), )
                 addon = ', '
-        cmd += columns + ') values ' + values + ')'
-        self.execute(cmd)
-        record = find()
+        cmd += columns + ') values ' + values + ') returning *'
+        self.execute(cmd, parameters, model, record)
 
     def remove(self, record):
         model, model_name = self.getModel(record)
         key_field = model.get_key_field().name
-        cmd = 'delete from ' + model_name + ' where ' +  key_field + ' = ' + str(getattr(record, key_field))
+        cmd = 'delete from ' + model_name + ' where ' +  key_field + ' = ' + str(getattr(record, key_field)) + " returning *"
         self.execute(cmd)
+        

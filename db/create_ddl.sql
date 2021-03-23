@@ -94,7 +94,7 @@ create table TAG(
     id		integer DEFAULT nextval('TAG_ID_SEQ'::regclass) NOT NULL,
     wording	character varying(45) NOT NULL
 );
-alter table TAG_ID_SEQ owner to MATCHAADMIN;
+alter table TAG owner to MATCHAADMIN;
 
 
 ---

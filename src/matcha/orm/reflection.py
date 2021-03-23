@@ -97,30 +97,34 @@ class ImageField(Field):
         super().__set__(instance, value)
 
 class ManyToOneField(Field):
-    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfield=None):
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None):
         Field.__init__(self, iscomputed, iskey, isnumeric)
-        if modelname is None or keyfield is None:
-            raise ValueError("'modelname' and 'keyfield' attributes must be specified!")
+        if modelname is None is None:
+            raise ValueError("'modelname' attribute must be specified!")
         self.modelname = modelname
-        self.keyfield = keyfield
+    def __set__(self, instance, value):
+        self.value = value
+
+class OneToManyField(Field):
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfieldname=None, orderby=None):
+        if modelname is None or keyfieldname is None:
+            raise ValueError("'modelname' and 'keyfieldname' attributes must be specified!")
+        Field.__init__(self, iscomputed, iskey, isnumeric)
+        self.modelname = modelname
+        self.keyfieldname=keyfieldname
+        self.orderby = orderby
     def __set__(self, instance, value):
         if not isinstance(value, list):
             raise TypeError(instance, self._name, list, value)
         self.value = value
 
-class ManyToManyField(ManyToOneField):
-    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfield=None, jointable=None, joinfield=None):
-        Field.__init__(self, iscomputed, iskey, isnumeric, modelname, keyfield)
+class ManyToManyField(OneToManyField):
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfieldname=None, jointable=None, joinfieldname=None):
+        if jointable is None or joinfieldname is None:
+            raise ValueError("'jointable' and 'keyfieldname' attributes must be specified!")
+        OneToManyField.__init__(self, iscomputed, iskey, isnumeric, modelname, keyfieldname)
         self.jointable = jointable
-        self.joinfield = joinfield
-
-class OneToManyField(Field):
-    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfield=None):
-        Field.__init__(self, iscomputed, iskey, isnumeric)
-        self.modelname = modelname
-        self.keyfield=keyfield
-    def __set__(self, instance, value):
-        self.value = value
+        self.joinfieldname = joinfieldname
 
 class ModelObject(object):
     @classmethod
@@ -196,7 +200,7 @@ class Model():
 #         head += ")\n"
         model_str = self.head(instance, self.name)  + "\n"
         for field in self.fields:
-            if not field.type.iskey:
+            if not field.type.iskey and not isinstance(field.type, OneToManyField):
                 attr = getattr(instance, field.name)
                 if hasattr(attr, 'get_model_name'):
                     attr = self.head(attr, type(attr).__name__)

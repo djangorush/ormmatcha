@@ -17,5 +17,5 @@ class Users(ModelObject):
     orientation: EnumField(values=['Hetero', 'Homo', 'bi'])
     birthday: DateField()
     last_update: DateTimeField(iscomputed=True)
-    tags: ManyToManyField(jointable='user_tag', modelname='Tag', keyfield='users_id', joinfield='tag_id')
-    connections: OneToManyField(modelname='Connection', keyfield='users_id')
+    tags: ManyToManyField(jointable='users_tag', modelname='Tag', keyfieldname='users_id', joinfieldname='id')
+    connections: OneToManyField(modelname='Connection', keyfieldname='users_id')
