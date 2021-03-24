@@ -26,6 +26,24 @@ class IntField(Field):
             raise TypeError(instance, self._name, int, value)
         super().__set__(instance, value)
 
+class ArrayField(Field):
+
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, arraytype=None, length=None):
+        Field.__init__(self, iscomputed, iskey, isnumeric)
+        self.arraytype = arraytype
+        self.length = length
+    
+    def __set__(self, instance, value):
+        if not isinstance(value, list):
+            raise TypeError(instance, self._name, list, value)
+            if not self.arraytype is None:
+                for i in value:
+                    if not isinstance(i, int):
+                        raise TypeError(instance, self._name, self.arraytype, value)
+        if not self.length is None and len(value) != self.length:
+            raise ValueError("Invalid number of elements'"+ self.length + "!")            
+        super().__set__(instance, value)
+
 class CharField(Field):
     def __init__(self, iscomputed=False, iskey=False, isnumeric=False, length=None):
         Field.__init__(self, iscomputed, iskey, isnumeric)
@@ -105,26 +123,17 @@ class ManyToOneField(Field):
     def __set__(self, instance, value):
         self.value = value
 
-class OneToManyField(Field):
-    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfieldname=None, orderby=None):
-        if modelname is None or keyfieldname is None:
-            raise ValueError("'modelname' and 'keyfieldname' attributes must be specified!")
+class SetField(Field):
+    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, select=None):
+        if modelname is None or select is None:
+            raise ValueError("'modelname' and 'select' attributes must be specified!")
         Field.__init__(self, iscomputed, iskey, isnumeric)
         self.modelname = modelname
-        self.keyfieldname=keyfieldname
-        self.orderby = orderby
+        self.select = select
     def __set__(self, instance, value):
         if not isinstance(value, list):
             raise TypeError(instance, self._name, list, value)
         self.value = value
-
-class ManyToManyField(OneToManyField):
-    def __init__(self, iscomputed=False, iskey=False, isnumeric=False, modelname=None, keyfieldname=None, jointable=None, joinfieldname=None):
-        if jointable is None or joinfieldname is None:
-            raise ValueError("'jointable' and 'keyfieldname' attributes must be specified!")
-        OneToManyField.__init__(self, iscomputed, iskey, isnumeric, modelname, keyfieldname)
-        self.jointable = jointable
-        self.joinfieldname = joinfieldname
 
 class ModelObject(object):
     @classmethod
@@ -137,6 +146,14 @@ class ModelObject(object):
         else:
             model = ModelDict().get_model(self.get_model_name())
             return model.model_str(self) 
+    def pre_persist(self, record):
+        pass
+
+    def pre_merge(self, record):
+        pass
+
+    def pre_remove(self, record):
+        pass
 
 class Model():
     def __init__(self, model_name):
@@ -200,7 +217,7 @@ class Model():
 #         head += ")\n"
         model_str = self.head(instance, self.name)  + "\n"
         for field in self.fields:
-            if not field.type.iskey and not isinstance(field.type, OneToManyField):
+            if not field.type.iskey and not isinstance(field.type, SetField):
                 attr = getattr(instance, field.name)
                 if hasattr(attr, 'get_model_name'):
                     attr = self.head(attr, type(attr).__name__)

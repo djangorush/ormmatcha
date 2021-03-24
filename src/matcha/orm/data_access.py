@@ -2,7 +2,7 @@ import psycopg2 as p
 from matcha.orm.reflection import ModelDict
 import matcha.config
 import logging
-from matcha.orm.reflection import OneToManyField, ManyToManyField
+from matcha.orm.reflection import SetField
 
 class Query():
     """
@@ -70,7 +70,7 @@ class Query():
         first = True
         model = ModelDict().get_model(model_name)
         for field in model.get_fields():
-            if not isinstance(field.type, OneToManyField):
+            if not isinstance(field.type, SetField):
                 query += (" " if first else ", ") + self.suffix + '.' + field.name
                 first = False
         """
@@ -80,7 +80,7 @@ class Query():
             field = leftjoin[3]          
             from_clause += " left outer join " + field.type.modelname + ' ' + leftjoin[1]
             for field in leftjoin[2].get_fields():
-                if not isinstance(field.type, OneToManyField):
+                if not isinstance(field.type, SetField):
                     query += ", " + leftjoin[1] + '.' + field.name
                     if field.type.iskey:
                         from_clause += " on " +self.suffix + '.' + leftjoin[0] + ' = ' + leftjoin[1] + '.' + field.name
@@ -133,27 +133,24 @@ class DataAccess():
         modelobject = model.new_instance()
         i = start
         for field in model.get_fields():
-            if not isinstance(field.type, OneToManyField):
+            if not isinstance(field.type, SetField):
                 setattr(modelobject,field.name,record[i])
                 i += 1
         return (modelobject, i)
     
-    def get_set_elements(self, suffix, _id, setjoin):
+    def get_set_elements(self, _id, setjoin):
         """
-        setjoin--> 0:fieldName, 1:suffix, 2:join model, 3:ManyToOne field 
+        setjoin--> 0:fieldName, 1:suffix, 2:join model, 3:Set field 
         """
         objects = []
-        fieldtype = setjoin[3].type
-        if isinstance(setjoin[3].type, ManyToManyField):
-            setmodel = ModelDict().get_model(setjoin[3].type.modelname)
-            addonclause = "exists ( select 1 from " + fieldtype.jointable + " xyz where " + suffix + "." + fieldtype.joinfieldname + " = xyz." + fieldtype.keyfieldname + ")"
-            records = self.__fetch_records(setmodel, leftjoins=[], conditions=[], whereaddon=(addonclause, ), orderby=fieldtype.orderby)
-        else:
-            records = self.__fetch_records(setjoin[2], leftjoins=[], conditions=(fieldtype.keyfieldname, _id), whereaddon=None, orderby=fieldtype.orderby)
-        for record in records:
-            (modelobject, _) = self.populate(record, setjoin[2], 0)
-            objects.append(modelobject)
-        return objects
+        logging.debug("Excecute:" + setjoin[3].type.select)
+        with DataAccess.__connection.cursor() as cursor:            
+            cursor.execute(setjoin[3].type.select, (_id,))
+            records = cursor.fetchall()
+            for record in records:
+                (modelobject, _) = self.populate(record, setjoin[2], 0)
+                objects.append(modelobject)
+        return objects;
 
     def __fetch_records(self, model, leftjoins, conditions, whereaddon, orderby):
         query, parameters = Query(model, leftjoins, conditions, whereaddon, orderby).build_query()
@@ -184,7 +181,7 @@ class DataAccess():
             joinModel = ModelDict().get_model(model.get_field(join_name).type.modelname)
             joinfield = model.get_field(join_name)          
             leftjoin = (join_name, suffix, joinModel, joinfield)
-            if not isinstance(joinfield.type, OneToManyField):
+            if not isinstance(joinfield.type, SetField):
                 leftjoins.append(leftjoin)
             else:
                 setjoins.append(leftjoin)
@@ -197,7 +194,7 @@ class DataAccess():
                 setattr(modelobject,leftjoin[0],joinobject)
             for setjoin in setjoins:
                 _id = getattr(modelobject, model.get_key_field().name)
-                setattr(modelobject, setjoin[0], self.get_set_elements(suffix, _id, setjoin))
+                setattr(modelobject, setjoin[0], self.get_set_elements(_id, setjoin))
         return objects
 
     def find(self, model_name, joins=[], conditions=[], orderby=None):
@@ -221,6 +218,7 @@ class DataAccess():
         return ModelDict().get_model(model_name), model_name
         
     def execute(self, cmd, parameters=None, model=None, record=None):
+        logging.debug("Excecute:" + cmd)
         with DataAccess.__connection.cursor() as cursor:
             cursor.execute(cmd, parameters)
             if not record is None:
@@ -234,16 +232,16 @@ class DataAccess():
             else:
                 returnvalue = None
             DataAccess.__connection.commit()
-            logging.debug("Excecute:" + cmd)
             return returnvalue
         
     def merge(self, record):
         model, model_name = self.getModel(record)
+        model.pre_merge(record)
         cmd = "update " + model_name + " set"
         addon = ' '
         parameters = tuple()
         for field in model.get_fields():
-            if not field.type.iskey and not field.type.iscomputed and not isinstance(field.type, OneToManyField):
+            if not field.type.iskey and not field.type.iscomputed and not isinstance(field.type, SetField):
                 cmd += addon + field.name + " = %s"
                 addon = ', '
                 parameters += (getattr(record, field.name),)
@@ -255,13 +253,14 @@ class DataAccess():
                    
     def persist(self, record):
         model, model_name = self.getModel(record)
+        model.pre_persist(record)
         cmd = "insert into " + model_name
         columns = ''
         values = ''
         addon = '('
         parameters = tuple()
         for field in model.get_fields():
-            if not field.type.iskey and not field.type.iscomputed and not isinstance(field.type, OneToManyField):
+            if not field.type.iskey and not field.type.iscomputed and not isinstance(field.type, SetField):
                 columns += addon + field.name
                 values += addon + '%s'
                 parameters += (getattr(record, field.name), )
@@ -271,6 +270,7 @@ class DataAccess():
 
     def remove(self, record):
         model, model_name = self.getModel(record)
+        model.pre_remove(record)
         key_field = model.get_key_field().name
         cmd = 'delete from ' + model_name + ' where ' +  key_field + ' = ' + str(getattr(record, key_field)) + " returning *"
         self.execute(cmd)

@@ -20,11 +20,15 @@ insert into users_tag(users_id, tag_id) values (3,4);
 insert into users_tag(users_id, tag_id) values (4,1);
 insert into users_tag(users_id, tag_id) values (4,6);
 
-insert into message(users_id1, users_id2, chat) values (3,2, 'Que dois-je faire pour l''Astra-Zeneca');
-insert into message(users_id1, users_id2, chat) values (2,3, 'Faut faire gaffe');
-insert into message(users_id1, users_id2, chat) values (3,3, 'Zut, mon PM a dit hier aue c''etait OK');
-insert into message(users_id1, users_id2, chat) values (2,3, 'T''as plus qu''a le contredire!');
-insert into message(users_id1, users_id2, chat) values (2,3, 'Ce ne sera qu''une fois de plus!!!!');
+insert into room(id, users_ids) values (1, '{2,3}');
+insert into room(id, users_ids) values (2,	'{2,1}');
+
+
+insert into message(room_id, sender_id, receiver_id, chat) values (1,3,2, 'Que dois-je faire pour l''Astra-Zeneca');
+insert into message(room_id, sender_id, receiver_id, chat) values (1,2,3, 'Faut faire gaffe');
+insert into message(room_id, sender_id, receiver_id, chat) values (1,3,2, 'Zut, mon PM a dit hier que c''etait OK');
+insert into message(room_id, sender_id, receiver_id, chat) values (1,2,3, 'T''as plus qu''a le contredire!');
+insert into message(room_id, sender_id, receiver_id, chat) values (1,2,3, 'Ce ne sera qu''une fois de plus!!!!');
 
 insert into connection (users_id, ip, connect_date) values(1, '192.0.0.1', TIMESTAMP '2021-03-17 09:09:12');
 insert into connection (users_id, ip, connect_date) values(2, '192.0.0.1', TIMESTAMP '2021-03-17 11:30:34');

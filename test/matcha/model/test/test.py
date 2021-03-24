@@ -47,13 +47,16 @@ if __name__ == "__main__":
 #     print(t)
 
     '''
-    select Users 1 with set of connections
+    select Users 1 with set of connections and rooms and tags
     '''
-    records = DataAccess().fetch('Users', joins=['connections', 'tags'], conditions='1')
+    records = DataAccess().fetch('Users', joins=['tags', 'rooms', 'connections'], conditions='2')
     print(records[0])
-    for connection in records[0].connections:
-        print(connection)
-    if records[0].tags:
+    if hasattr(records[0],'connections'):
+        for connection in records[0].connections:
+            print(connection)
+    if hasattr(records[0],'tags'):
         for tag in records[0].tags:
             print(tag)
-    
+    if hasattr(records[0],'rooms'):
+        for room in records[0].rooms:
+            print(room)
